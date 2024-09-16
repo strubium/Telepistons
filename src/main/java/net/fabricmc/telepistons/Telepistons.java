@@ -6,6 +6,9 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Random;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -29,6 +32,10 @@ import net.minecraft.util.math.Vec3f;
 
 public class Telepistons implements ModInitializer {
 
+	public static final String modName = "telepistons";
+
+	public static final Logger LOGGER = LoggerFactory.getLogger(modName);
+
 	public static Identifier pistonArmModel;
 	public static BakedModel pistonArmBakedModel;
 	public static Random random = new Random();
@@ -46,25 +53,25 @@ public class Telepistons implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		Identifier scissorPack = new Identifier("telepistons","scissor_pistons");
-		Identifier bellowsPack = new Identifier("telepistons","bellows_pistons");
-		Identifier stickySidesPack = new Identifier("telepistons","sticky_sides");
-		Identifier enableSteam = new Identifier("telepistons","enable_steam");
-		FabricLoader.getInstance().getModContainer("telepistons").ifPresent(container -> {
+		Identifier scissorPack = new Identifier(modName,"scissor_pistons");
+		Identifier bellowsPack = new Identifier(modName,"bellows_pistons");
+		Identifier stickySidesPack = new Identifier(modName,"sticky_sides");
+		Identifier enableSteam = new Identifier(modName,"enable_steam");
+		FabricLoader.getInstance().getModContainer(modName).ifPresent(container -> {
 			ResourceManagerHelper.registerBuiltinResourcePack(scissorPack, container, ResourcePackActivationType.NORMAL);
 			ResourceManagerHelper.registerBuiltinResourcePack(bellowsPack, container, ResourcePackActivationType.NORMAL);
 			ResourceManagerHelper.registerBuiltinResourcePack(stickySidesPack, container, ResourcePackActivationType.NORMAL);
 			ResourceManagerHelper.registerBuiltinResourcePack(enableSteam, container, ResourcePackActivationType.DEFAULT_ENABLED);
 		});
 
-		pistonArmModel = new Identifier("telepistons","block/piston_arm");
+		pistonArmModel = new Identifier(modName,"block/piston_arm");
 		ModelLoadingRegistry.INSTANCE.registerModelProvider((modelManager, out) -> out.accept(pistonArmModel));
 
 		ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(
 			new SimpleSynchronousResourceReloadListener() {
 				@Override
 				public Identifier getFabricId(){
-					return new Identifier("telepistons","models");
+					return new Identifier(modName,"models");
 				}
 
 				@Override
@@ -76,7 +83,7 @@ public class Telepistons implements ModInitializer {
 							BufferedReader streamReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
 							JsonObject json = JsonHelper.deserialize(streamReader);
 
-							JsonObject settings = json.get("telepistons").getAsJsonObject();
+							JsonObject settings = json.get(modName).getAsJsonObject();
 
 							squishArm = settings.get("squish").getAsBoolean();
 							particleCount = Math.max(settings.get("particles").getAsInt(), 0);
@@ -98,12 +105,11 @@ public class Telepistons implements ModInitializer {
 										squishFactorsZ.getY());
 							}
 
-							System.out.println("[Telepistons] Read settings successfully");
+							LOGGER.info("Read settings successfully");
 						} catch(Exception e) {
 							particleCount = 0;
 							squishArm = false;
-							System.out.println("Error:\n" + e);
-							System.out.println("[Telepistons] Error while trying to read settings, using standard values");
+							LOGGER.error("Error while trying to read settings, using standard values");
 						}
 					}
 
@@ -115,12 +121,12 @@ public class Telepistons implements ModInitializer {
 							BufferedReader streamReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
 							JsonObject json = JsonHelper.deserialize(streamReader);
 
-							JsonObject settings = json.get("telepistons").getAsJsonObject();
+							JsonObject settings = json.get(modName).getAsJsonObject();
 							steamOverride = settings.get("particleOverride").getAsBoolean();
 
-							System.out.println("[Telepistons] Read particle setting successfully");
+							LOGGER.info("Read particle setting successfully");
 						} catch(Exception e) {
-							System.out.println("[Telepistons] Particle setting file erroneous");
+							LOGGER.error("Particle setting file erroneous", e);
 						}
 					}
 

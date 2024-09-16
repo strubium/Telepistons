@@ -4,9 +4,9 @@
   "version": "${version}",
 
   "name": "Telepistons",
-  "description": "Telescopic and squishy  Piston Arms!",
+  "description": "Telescopic and squishy Piston Arms!",
   "authors": [
-    "Tec"
+    "Tec", "strubium"
   ],
   "contact": {
     "homepage": "none",
@@ -30,8 +30,5 @@
     "fabricloader": ">=0.7.4",
     "fabric": "*",
     "minecraft": "1.19.*"
-  },
-  "suggests": {
-    "flamingo": "*"
   }
 }
