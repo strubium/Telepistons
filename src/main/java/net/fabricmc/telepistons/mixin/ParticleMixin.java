@@ -14,9 +14,14 @@ import net.minecraft.world.World;
 
 @Mixin(PistonBlock.class)
 public class ParticleMixin {
-	@Inject(at = @At("HEAD"), method = "move(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;Z)Z")
+	@Inject(at = @At("HEAD"), method = "move("
+			+ "Lnet/minecraft/world/World;"
+			+ "Lnet/minecraft/util/math/BlockPos;"
+			+ "Lnet/minecraft/util/math/Direction;"
+			+ "Z)Z")
 	public void spawnParticles(World world, BlockPos pos, Direction dir, boolean retract, CallbackInfoReturnable info) {
 		if(Telepistons.emitSteam) {
+			int signFlip = retract ? 1 : -1;
 			float dx = dir.getOffsetX();
 			float dy = dir.getOffsetY();
 			float dz = dir.getOffsetZ();

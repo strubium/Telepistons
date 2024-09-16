@@ -2,7 +2,6 @@ package net.fabricmc.telepistons.mixin;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderLayers;
-import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
@@ -27,7 +26,7 @@ import net.minecraft.world.World;
 @Mixin(PistonBlockEntityRenderer.class)
 public class PistonRendererMixin {
     @Environment(EnvType.CLIENT)
-    @Inject(at = @At("HEAD"), method = "Lnet/minecraft/client/render/block/entity/PistonBlockEntityRenderer;render(Lnet/minecraft/block/entity/PistonBlockEntity;FLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;II)V")
+    @Inject(at = @At("HEAD"), method = "render(Lnet/minecraft/block/entity/PistonBlockEntity;FLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;II)V")
     private void render(PistonBlockEntity pistonBlockEntity, float f, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i, int j, CallbackInfo info) {
         if (pistonBlockEntity.isSource()) {
             World world = pistonBlockEntity.getWorld();
@@ -47,12 +46,12 @@ public class PistonRendererMixin {
                     float dy = dir.getOffsetY();
                     float dz = dir.getOffsetZ();
 
-                    Vec3d squishFactorsSrc =
+                    Vector3f squishFactorsSrc =
                             (dx != 0f) ? Telepistons.squishFactorsX
                                     : (dy != 0f) ? Telepistons.squishFactorsY
                                     : Telepistons.squishFactorsZ;
 
-                    Vector3f squishFactors = new Vector3f((float) squishFactorsSrc.getX(), (float) squishFactorsSrc.getY(), (float) squishFactorsSrc.getZ());
+                    Vector3f squishFactors = new Vector3f(squishFactorsSrc.x(), squishFactorsSrc.y(), squishFactorsSrc.z());
 
                     matrixStack.translate(.5f, .5f, .5f);
 

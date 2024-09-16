@@ -4,32 +4,29 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin;
+import net.fabricmc.fabric.api.client.model.BakedModelManagerHelper;
+import net.fabricmc.fabric.api.client.model.ModelLoadingRegistry;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.ResourcePackActivationType;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.fabricmc.fabric.impl.client.model.loading.ModelLoadingPluginManager;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.model.BakedModel;
-import net.minecraft.client.render.model.BakedModelManager;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceType;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.JsonHelper;
 import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
 import org.joml.AxisAngle4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
-import org.joml.Vector3fc;
 
 public class Telepistons implements ModInitializer {
 
@@ -41,9 +38,9 @@ public class Telepistons implements ModInitializer {
 	public static int particleCount;
 	public static boolean squishArm;
 
-	public static Vec3d squishFactorsX;
-	public static Vec3d squishFactorsY;
-	public static Vec3d squishFactorsZ;
+	public static Vector3f squishFactorsX;
+	public static Vector3f squishFactorsY;
+	public static Vector3f squishFactorsZ;
 
 	private static final float HALF_TURN = (float) Math.PI;
 	private static final float QUART_TURN = (float) (Math.PI / 2.0f);
@@ -54,10 +51,10 @@ public class Telepistons implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		Identifier scissorPack = Identifier.of("telepistons","scissor_pistons");
-		Identifier bellowsPack = Identifier.of("telepistons","bellows_pistons");
-		Identifier stickySidesPack = Identifier.of("telepistons","sticky_sides");
-		Identifier enableSteam = Identifier.of("telepistons","enable_steam");
+		Identifier scissorPack = new Identifier("telepistons","scissor_pistons");
+		Identifier bellowsPack = new Identifier("telepistons","bellows_pistons");
+		Identifier stickySidesPack = new Identifier("telepistons","sticky_sides");
+		Identifier enableSteam = new Identifier("telepistons","enable_steam");
 		FabricLoader.getInstance().getModContainer("telepistons").ifPresent(container -> {
 			ResourceManagerHelper.registerBuiltinResourcePack(scissorPack, container, ResourcePackActivationType.NORMAL);
 			ResourceManagerHelper.registerBuiltinResourcePack(bellowsPack, container, ResourcePackActivationType.NORMAL);
@@ -65,14 +62,14 @@ public class Telepistons implements ModInitializer {
 			ResourceManagerHelper.registerBuiltinResourcePack(enableSteam, container, ResourcePackActivationType.DEFAULT_ENABLED);
 		});
 
-		pistonArmModel = Identifier.of("telepistons","block/piston_arm");
-		ModelLoadingPlugin.register(pluginContext -> {pluginContext.addModels(pistonArmModel);});
+		pistonArmModel = new Identifier("telepistons","block/piston_arm");
+		ModelLoadingRegistry.INSTANCE.registerModelProvider((modelManager, out) -> out.accept(pistonArmModel));
 
 		ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(
 			new SimpleSynchronousResourceReloadListener() {
 				@Override
 				public Identifier getFabricId(){
-					return Identifier.of("telepistons","models");
+					return new Identifier("telepistons","models");
 				}
 
 				@Override
@@ -90,20 +87,20 @@ public class Telepistons implements ModInitializer {
 							particleCount = Math.max(settings.get("particles").getAsInt(), 0);
 							if(squishArm) {
 								JsonArray factorArr = settings.get("squishedScale").getAsJsonArray();
-								squishFactorsZ = new Vec3d(
+								squishFactorsZ = new Vector3f(
 										factorArr.remove(0).getAsFloat(),
 										factorArr.remove(0).getAsFloat(),
 										factorArr.remove(0).getAsFloat());
 
-								squishFactorsX = new Vec3d(
-										squishFactorsZ.getZ(),
-										squishFactorsZ.getY(),
-										squishFactorsZ.getX());
+								squishFactorsX = new Vector3f(
+										squishFactorsZ.z(),
+										squishFactorsZ.y(),
+										squishFactorsZ.x());
 
-								squishFactorsY = new Vec3d(
-										squishFactorsZ.getX(),
-										squishFactorsZ.getZ(),
-										squishFactorsZ.getY());
+								squishFactorsY = new Vector3f(
+										squishFactorsZ.x(),
+										squishFactorsZ.z(),
+										squishFactorsZ.y());
 							}
 
 							System.out.println("[Telepistons] Read settings successfully");
@@ -134,9 +131,7 @@ public class Telepistons implements ModInitializer {
 
 					emitSteam = steamOverride && (particleCount > 0);
 
-					BakedModelManager modelManager = net.minecraft.client.MinecraftClient.getInstance().getBakedModelManager();
-					pistonArmBakedModel = modelManager.getModel(pistonArmModel);
-					if(pistonArmBakedModel == null) System.out.println("Baked Model is Null!");
+					pistonArmBakedModel = BakedModelManagerHelper.getModel(MinecraftClient.getInstance().getBakedModelManager(), pistonArmModel);
 				}
 			}
 		);
