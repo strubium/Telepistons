@@ -9,7 +9,6 @@ import java.util.Random;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.fabricmc.api.ModInitializer;
@@ -32,9 +31,8 @@ import net.minecraft.util.math.Vec3f;
 
 public class Telepistons implements ModInitializer {
 
-	public static final String modName = "telepistons";
-
-	public static final Logger LOGGER = LoggerFactory.getLogger(modName);
+	public static final String MOD_NAME = "telepistons";
+	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_NAME);
 
 	public static Identifier pistonArmModel;
 	public static BakedModel pistonArmBakedModel;
@@ -53,93 +51,108 @@ public class Telepistons implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		Identifier scissorPack = new Identifier(modName,"scissor_pistons");
-		Identifier bellowsPack = new Identifier(modName,"bellows_pistons");
-		Identifier stickySidesPack = new Identifier(modName,"sticky_sides");
-		Identifier enableSteam = new Identifier(modName,"enable_steam");
-		FabricLoader.getInstance().getModContainer(modName).ifPresent(container -> {
+		registerResourcePacks();
+		pistonArmModel = new Identifier(MOD_NAME, "block/piston_arm");
+		ModelLoadingRegistry.INSTANCE.registerModelProvider((modelManager, out) -> out.accept(pistonArmModel));
+
+		ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener() {
+			@Override
+			public Identifier getFabricId() {
+				return new Identifier(MOD_NAME, "models");
+			}
+
+			@Override
+			public void reload(ResourceManager manager) {
+				readSettings(manager, "models", "piston_arm.json");
+				readParticleSettings(manager, "models", "piston_particle.json");
+				pistonArmBakedModel = BakedModelManagerHelper.getModel(MinecraftClient.getInstance().getBakedModelManager(), pistonArmModel);
+			}
+		});
+	}
+
+	/**
+	 * Registers built-in resource packs for the mod.
+	 */
+	private void registerResourcePacks() {
+		Identifier scissorPack = new Identifier(MOD_NAME, "scissor_pistons");
+		Identifier bellowsPack = new Identifier(MOD_NAME, "bellows_pistons");
+		Identifier stickySidesPack = new Identifier(MOD_NAME, "sticky_sides");
+		Identifier enableSteam = new Identifier(MOD_NAME, "enable_steam");
+
+		FabricLoader.getInstance().getModContainer(MOD_NAME).ifPresent(container -> {
 			ResourceManagerHelper.registerBuiltinResourcePack(scissorPack, container, ResourcePackActivationType.NORMAL);
 			ResourceManagerHelper.registerBuiltinResourcePack(bellowsPack, container, ResourcePackActivationType.NORMAL);
 			ResourceManagerHelper.registerBuiltinResourcePack(stickySidesPack, container, ResourcePackActivationType.NORMAL);
 			ResourceManagerHelper.registerBuiltinResourcePack(enableSteam, container, ResourcePackActivationType.DEFAULT_ENABLED);
 		});
-
-		pistonArmModel = new Identifier(modName,"block/piston_arm");
-		ModelLoadingRegistry.INSTANCE.registerModelProvider((modelManager, out) -> out.accept(pistonArmModel));
-
-		ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(
-			new SimpleSynchronousResourceReloadListener() {
-				@Override
-				public Identifier getFabricId(){
-					return new Identifier(modName,"models");
-				}
-
-				@Override
-				public void reload(ResourceManager manager){
-					Map<Identifier, Resource> resourceMap = manager.findResources("models", path -> path.toString().endsWith("piston_arm.json"));
-
-					for(Map.Entry<Identifier, Resource> entry : resourceMap.entrySet()){
-						try(InputStream stream = manager.getResource(entry.getKey()).get().getInputStream()) {
-							BufferedReader streamReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
-							JsonObject json = JsonHelper.deserialize(streamReader);
-
-							JsonObject settings = json.get(modName).getAsJsonObject();
-
-							squishArm = settings.get("squish").getAsBoolean();
-							particleCount = Math.max(settings.get("particles").getAsInt(), 0);
-							if(squishArm) {
-								JsonArray factorArr = settings.get("squishedScale").getAsJsonArray();
-								squishFactorsZ = new Vec3f(
-										factorArr.remove(0).getAsFloat(),
-										factorArr.remove(0).getAsFloat(),
-										factorArr.remove(0).getAsFloat());
-
-								squishFactorsX = new Vec3f(
-										squishFactorsZ.getZ(),
-										squishFactorsZ.getY(),
-										squishFactorsZ.getX());
-
-								squishFactorsY = new Vec3f(
-										squishFactorsZ.getX(),
-										squishFactorsZ.getZ(),
-										squishFactorsZ.getY());
-							}
-
-							LOGGER.info("Read settings successfully");
-						} catch(Exception e) {
-							particleCount = 0;
-							squishArm = false;
-							LOGGER.error("Error while trying to read settings, using standard values");
-						}
-					}
-
-					resourceMap = manager.findResources("models", path -> path.toString().endsWith("piston_particle.json"));
-
-					steamOverride = false;
-					for(Map.Entry<Identifier, Resource> entry : resourceMap.entrySet()){
-						try(InputStream stream = manager.getResource(entry.getKey()).get().getInputStream()) {
-							BufferedReader streamReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
-							JsonObject json = JsonHelper.deserialize(streamReader);
-
-							JsonObject settings = json.get(modName).getAsJsonObject();
-							steamOverride = settings.get("particleOverride").getAsBoolean();
-
-							LOGGER.info("Read particle setting successfully");
-						} catch(Exception e) {
-							LOGGER.error("Particle setting file erroneous", e);
-						}
-					}
-
-					emitSteam = steamOverride && (particleCount > 0);
-
-					pistonArmBakedModel = BakedModelManagerHelper.getModel(MinecraftClient.getInstance().getBakedModelManager(), pistonArmModel);
-				}
-			}
-		);
 	}
 
-	public static Quaternion getRotationQuaternion(Direction dir){
-		return switch(dir){
+	/**
+	 * Reads settings from piston_arm.json and initializes related fields.
+	 */
+	private void readSettings(ResourceManager manager, String directory, String fileName) {
+		Map<Identifier, Resource> resourceMap = manager.findResources(directory, path -> path.toString().endsWith(fileName));
+		for (Map.Entry<Identifier, Resource> entry : resourceMap.entrySet()) {
+			try (InputStream stream = entry.getValue().getInputStream();
+				 BufferedReader streamReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+				JsonObject json = JsonHelper.deserialize(streamReader);
+				JsonObject settings = json.getAsJsonObject(MOD_NAME);
+
+				squishArm = settings.get("squish").getAsBoolean();
+				particleCount = Math.max(settings.get("particles").getAsInt(), 0);
+				initializeSquishFactors(settings);
+
+				LOGGER.info("Settings for piston arm successfully loaded.");
+			} catch (Exception e) {
+				particleCount = 0;
+				squishArm = false;
+				LOGGER.error("Error while loading settings from {}, using default values.", fileName, e);
+			}
+		}
+	}
+
+	/**
+	 * Initializes squish factors based on the settings.
+	 */
+	private void initializeSquishFactors(JsonObject settings) {
+		if (squishArm) {
+			JsonArray factorArr = settings.getAsJsonArray("squishedScale");
+			squishFactorsZ = new Vec3f(factorArr.remove(0).getAsFloat(), factorArr.remove(0).getAsFloat(), factorArr.remove(0).getAsFloat());
+
+			// Swap and assign squish factors for X and Y based on Z
+			squishFactorsX = new Vec3f(squishFactorsZ.getZ(), squishFactorsZ.getY(), squishFactorsZ.getX());
+			squishFactorsY = new Vec3f(squishFactorsZ.getX(), squishFactorsZ.getZ(), squishFactorsZ.getY());
+		}
+	}
+
+	/**
+	 * Reads particle settings from piston_particle.json.
+	 */
+	private void readParticleSettings(ResourceManager manager, String directory, String fileName) {
+		Map<Identifier, Resource> resourceMap = manager.findResources(directory, path -> path.toString().endsWith(fileName));
+
+		steamOverride = false;
+		for (Map.Entry<Identifier, Resource> entry : resourceMap.entrySet()) {
+			try (InputStream stream = entry.getValue().getInputStream();
+				 BufferedReader streamReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+				JsonObject json = JsonHelper.deserialize(streamReader);
+				JsonObject settings = json.getAsJsonObject(MOD_NAME);
+				steamOverride = settings.get("particleOverride").getAsBoolean();
+
+				LOGGER.info("Particle settings successfully loaded.");
+			} catch (Exception e) {
+				LOGGER.error("Error while loading particle settings from {}.", fileName, e);
+			}
+		}
+
+		emitSteam = steamOverride && (particleCount > 0);
+	}
+
+	/**
+	 * Generates a rotation quaternion based on the piston direction.
+	 */
+	public static Quaternion getRotationQuaternion(Direction dir) {
+		return switch (dir) {
 			case UP -> Quaternion.fromEulerXyz(QUART_TURN, 0.0f, 0.0f);
 			case DOWN -> Quaternion.fromEulerXyz(-QUART_TURN, 0.0f, 0.0f);
 			case NORTH -> Quaternion.fromEulerXyz(0.0f, 0.0f, 0.0f);

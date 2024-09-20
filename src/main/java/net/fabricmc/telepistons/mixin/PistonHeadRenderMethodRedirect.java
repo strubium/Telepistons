@@ -18,18 +18,28 @@ import net.minecraft.world.World;
 
 @Mixin(PistonBlockEntityRenderer.class)
 abstract class PistonHeadRenderMethodRedirect {
+
 	@Environment(EnvType.CLIENT)
 	@Redirect(method = "render",
 			at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/block/entity/PistonBlockEntityRenderer;renderModel(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;Lnet/minecraft/world/World;ZI)V"))
-	private void renderRedirect(PistonBlockEntityRenderer PBER, BlockPos blockPos, BlockState blockState, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, World world, boolean bl, int i) {
-		if(blockState.isOf(Blocks.PISTON_HEAD) && !blockState.get(PistonHeadBlock.SHORT)) {
-			this.renderModel(blockPos, blockState.with(PistonHeadBlock.SHORT, true), matrixStack, vertexConsumerProvider, world, bl, i);
-		} else {
-			this.renderModel(blockPos, blockState, matrixStack, vertexConsumerProvider, world, bl, i);
-		}
+	private void redirectPistonHeadRendering(PistonBlockEntityRenderer renderer, BlockPos blockPos, BlockState blockState, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, World world, boolean cull, int light) {
+		BlockState modifiedBlockState = adjustPistonHeadState(blockState);
+		this.renderModel(blockPos, modifiedBlockState, matrixStack, vertexConsumerProvider, world, cull, light);
 	}
-	
-	@Shadow private void renderModel(BlockPos blockPos, BlockState blockState, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, World world, boolean bl, int i) {
-		
+
+	private BlockState adjustPistonHeadState(BlockState blockState) {
+		// Ensure PistonHeadBlock.SHORT is true when needed
+		if (isExtendedPistonHead(blockState)) {
+			return blockState.with(PistonHeadBlock.SHORT, true);
+		}
+		return blockState;
+	}
+
+	private boolean isExtendedPistonHead(BlockState blockState) {
+		return blockState.isOf(Blocks.PISTON_HEAD) && !blockState.get(PistonHeadBlock.SHORT);
+	}
+
+	@Shadow
+	private void renderModel(BlockPos blockPos, BlockState blockState, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, World world, boolean cull, int light) {
 	}
 }
