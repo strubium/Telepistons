@@ -25,84 +25,112 @@ import net.minecraft.world.World;
 
 @Mixin(PistonBlockEntityRenderer.class)
 public class PistonRendererMixin {
+
+    private static final float HALF_BLOCK = 0.5f;
+    private static final float QUARTER_BLOCK = 0.25f;
+    private static final float EXTEND_RATE = 0.5f;
+
     @Environment(EnvType.CLIENT)
     @Inject(at = @At("HEAD"), method = "render(Lnet/minecraft/block/entity/PistonBlockEntity;FLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;II)V")
-    private void render(PistonBlockEntity pistonBlockEntity, float f, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int i, int j, CallbackInfo info) {
-        if (pistonBlockEntity.isSource()) {
-            World world = pistonBlockEntity.getWorld();
-            if (world != null) {
-                BlockPos blockPos = pistonBlockEntity.getPos();
-                Direction dir = pistonBlockEntity.getMovementDirection();
-                float dist = 1 - (Math.abs(pistonBlockEntity.getRenderOffsetX(f))
-                        + Math.abs(pistonBlockEntity.getRenderOffsetY(f))
-                        + Math.abs(pistonBlockEntity.getRenderOffsetZ(f)));
-                BlockModelRenderer.enableBrightnessCache();
-                matrixStack.push();
+    private void render(PistonBlockEntity pistonBlockEntity, float tickDelta, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider, int light, int overlay, CallbackInfo info) {
+        if (!pistonBlockEntity.isSource()) return;
 
-                float extendRate = 0.5F;
-                if (Telepistons.squishArm) {
-                    boolean extending = pistonBlockEntity.isExtending();
-                    float dx = dir.getOffsetX();
-                    float dy = dir.getOffsetY();
-                    float dz = dir.getOffsetZ();
+        World world = pistonBlockEntity.getWorld();
+        if (world == null) return;
 
-                    Vec3f squishFactorsSrc =
-                            (dx != 0f) ? Telepistons.squishFactorsX
-                                    : (dy != 0f) ? Telepistons.squishFactorsY
-                                    : Telepistons.squishFactorsZ;
+        BlockPos blockPos = pistonBlockEntity.getPos();
+        Direction dir = pistonBlockEntity.getMovementDirection();
+        float dist = getRenderDistance(pistonBlockEntity, tickDelta);
 
-                    Vec3f squishFactors = new Vec3f(squishFactorsSrc.getX(), squishFactorsSrc.getY(), squishFactorsSrc.getZ());
+        BlockModelRenderer.enableBrightnessCache();
+        matrixStack.push();
 
-                    matrixStack.translate(.5f, .5f, .5f);
-
-                    if (extending) {
-                        squishFactors.lerp(new Vec3f(1f, 1f, 1f), dist);
-
-                        matrixStack.translate(.25f * dx, .25f * dy, .25f * dz);
-                        matrixStack.translate(-dx, -dy, -dz);
-
-                        matrixStack.scale(
-                                squishFactors.getX(),
-                                squishFactors.getY(),
-                                squishFactors.getZ());
-
-                        matrixStack.translate(-.5f - .25f * dx, -.5f - .25f * dy, -.5f - .25f * dz);
-                        matrixStack.translate(.5f * dx, .5f * dy, .5f * dz);
-
-                        matrixStack.translate(.5f * dx, .5f * dy, .5f * dz);
-                    } else {
-                        Vec3f squish = new Vec3f(1f, 1f, 1f);
-                        squish.lerp(squishFactors, dist);
-
-                        matrixStack.translate(-.25f * dx, -.25f * dy, -.25f * dz);
-
-                        matrixStack.scale(
-                                squish.getX(),
-                                squish.getY(),
-                                squish.getZ());
-
-                        matrixStack.translate(-.5f - .25f * dx, -.5f - .25f * dy, -.5f - .25f * dz);
-                        matrixStack.translate(-.5f * dx, -.5f * dy, -.5f * dz);
-                    }
-                } else {
-                    matrixStack.translate(extendRate * (double) pistonBlockEntity.getRenderOffsetX(f), extendRate * (double) pistonBlockEntity.getRenderOffsetY(f), extendRate * (double) pistonBlockEntity.getRenderOffsetZ(f));
-
-                    if (!pistonBlockEntity.isExtending()) {
-                        matrixStack.translate(-.5f * dir.getOffsetX(), -.5f * dir.getOffsetY(), -.5f * dir.getOffsetZ());
-                    }
-                }
-
-                matrixStack.translate(.5f, .5f, .5f);
-                matrixStack.multiply(Telepistons.getRotationQuaternion(pistonBlockEntity.isExtending() ? dir : dir.getOpposite()));
-                matrixStack.translate(-.5f, -.5f, -.5f);
-
-                BlockState state = pistonBlockEntity.getCachedState();
-                MinecraftClient.getInstance().getBlockRenderManager().getModelRenderer().render(world, Telepistons.pistonArmBakedModel, state, blockPos, matrixStack, vertexConsumerProvider.getBuffer(RenderLayers.getMovingBlockLayer(state)), false, Random.create(), 1l, 0);
-
-                matrixStack.pop();
-                BlockModelRenderer.disableBrightnessCache();
-            }
+        if (Telepistons.squishArm) {
+            applySquishTransform(matrixStack, pistonBlockEntity, dir, dist);
+        } else {
+            applyStandardTransform(matrixStack, pistonBlockEntity, tickDelta, dir);
         }
+
+        applyRotationTransform(matrixStack, pistonBlockEntity, dir);
+        renderPistonArm(world, pistonBlockEntity.getCachedState(), blockPos, matrixStack, vertexConsumerProvider);
+
+        matrixStack.pop();
+        BlockModelRenderer.disableBrightnessCache();
+    }
+
+    private float getRenderDistance(PistonBlockEntity pistonBlockEntity, float tickDelta) {
+        return 1 - (Math.abs(pistonBlockEntity.getRenderOffsetX(tickDelta))
+                + Math.abs(pistonBlockEntity.getRenderOffsetY(tickDelta))
+                + Math.abs(pistonBlockEntity.getRenderOffsetZ(tickDelta)));
+    }
+
+    private void applySquishTransform(MatrixStack matrixStack, PistonBlockEntity pistonBlockEntity, Direction dir, float dist) {
+        boolean extending = pistonBlockEntity.isExtending();
+        Vec3f squishFactors = getSquishFactors(dir);
+
+        matrixStack.translate(HALF_BLOCK, HALF_BLOCK, HALF_BLOCK);
+
+        if (extending) {
+            squishFactors.lerp(new Vec3f(1f, 1f, 1f), dist);
+            translateAndScale(matrixStack, dir, squishFactors, QUARTER_BLOCK, true);
+        } else {
+            Vec3f squish = new Vec3f(1f, 1f, 1f);
+            squish.lerp(squishFactors, dist);
+            translateAndScale(matrixStack, dir, squish, -QUARTER_BLOCK, false);
+        }
+
+        matrixStack.translate(-HALF_BLOCK, -HALF_BLOCK, -HALF_BLOCK);
+    }
+
+    private Vec3f getSquishFactors(Direction dir) {
+        if (dir.getOffsetX() != 0) {
+            return new Vec3f(Telepistons.squishFactorsX.getX(), Telepistons.squishFactorsX.getY(), Telepistons.squishFactorsX.getZ());
+        } else if (dir.getOffsetY() != 0) {
+            return new Vec3f(Telepistons.squishFactorsY.getX(), Telepistons.squishFactorsY.getY(), Telepistons.squishFactorsY.getZ());
+        } else {
+            return new Vec3f(Telepistons.squishFactorsZ.getX(), Telepistons.squishFactorsZ.getY(), Telepistons.squishFactorsZ.getZ());
+        }
+    }
+
+    private void translateAndScale(MatrixStack matrixStack, Direction dir, Vec3f squishFactors, float offset, boolean extending) {
+        matrixStack.translate(offset * dir.getOffsetX(), offset * dir.getOffsetY(), offset * dir.getOffsetZ());
+
+        if (extending) {
+            matrixStack.translate(-dir.getOffsetX(), -dir.getOffsetY(), -dir.getOffsetZ());
+        }
+
+        matrixStack.scale(squishFactors.getX(), squishFactors.getY(), squishFactors.getZ());
+    }
+
+    private void applyStandardTransform(MatrixStack matrixStack, PistonBlockEntity pistonBlockEntity, float tickDelta, Direction dir) {
+        matrixStack.translate(EXTEND_RATE * pistonBlockEntity.getRenderOffsetX(tickDelta),
+                EXTEND_RATE * pistonBlockEntity.getRenderOffsetY(tickDelta),
+                EXTEND_RATE * pistonBlockEntity.getRenderOffsetZ(tickDelta));
+
+        if (!pistonBlockEntity.isExtending()) {
+            matrixStack.translate(-HALF_BLOCK * dir.getOffsetX(), -HALF_BLOCK * dir.getOffsetY(), -HALF_BLOCK * dir.getOffsetZ());
+        }
+    }
+
+    private void applyRotationTransform(MatrixStack matrixStack, PistonBlockEntity pistonBlockEntity, Direction dir) {
+        matrixStack.translate(HALF_BLOCK, HALF_BLOCK, HALF_BLOCK);
+        matrixStack.multiply(Telepistons.getRotationQuaternion(pistonBlockEntity.isExtending() ? dir : dir.getOpposite()));
+        matrixStack.translate(-HALF_BLOCK, -HALF_BLOCK, -HALF_BLOCK);
+    }
+
+    private void renderPistonArm(World world, BlockState state, BlockPos blockPos, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider) {
+        MinecraftClient.getInstance().getBlockRenderManager().getModelRenderer().render(
+                world,
+                Telepistons.pistonArmBakedModel,
+                state,
+                blockPos,
+                matrixStack,
+                vertexConsumerProvider.getBuffer(RenderLayers.getMovingBlockLayer(state)),
+                false,
+                Random.create(),
+                1L,
+                0
+        );
     }
 
     @Shadow
