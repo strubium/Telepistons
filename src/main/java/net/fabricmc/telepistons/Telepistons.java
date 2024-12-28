@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import net.fabricmc.api.ModInitializer;
+import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.model.BakedModelManagerHelper;
 import net.fabricmc.fabric.api.client.model.ModelLoadingRegistry;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
@@ -29,7 +29,7 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Quaternion;
 import net.minecraft.util.math.Vec3f;
 
-public class Telepistons implements ModInitializer {
+public class Telepistons implements ClientModInitializer  {
 
 	public static final String MOD_NAME = "telepistons";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_NAME);
@@ -50,7 +50,7 @@ public class Telepistons implements ModInitializer {
 	private static final float QUART_TURN = (float) (Math.PI / 2.0f);
 
 	@Override
-	public void onInitialize() {
+	public void onInitializeClient() {
 		registerResourcePacks();
 		pistonArmModel = new Identifier(MOD_NAME, "block/piston_arm");
 		ModelLoadingRegistry.INSTANCE.registerModelProvider((modelManager, out) -> out.accept(pistonArmModel));
